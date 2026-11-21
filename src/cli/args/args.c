@@ -3,6 +3,7 @@
 
 #include "cli/args/args.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,24 +14,14 @@
 
 enum { MAX_POSITIONAL = 2 };
 
-// Help text lives here and not in its own module because args is the only
-// caller. If a second caller ever shows up, that is the time to split it out.
-static void usage_print(const char *prog, FILE *to) {
-    fprintf(to,
-        "Usage: %s [options] [[month] year]\n"
-        "\n"
-        "  %s              current month\n"
-        "  %s 10 2026      October 2026\n"
-        "  %s oct 2026     month names work too\n"
-        "  %s 10           October of this year\n"
-        "  %s 2026         the whole year\n"
-        "\n"
-        "Options:\n"
-        "  -m              Monday as first day of the week\n"
-        "  -w              show ISO week numbers\n"
-        "  -n, --no-color  disable colors (also honours NO_COLOR)\n"
-        "  -h, --help      show this help\n",
-        prog, prog, prog, prog, prog, prog);
+static ArgsStatus fail(Config *cfg, int show_usage, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(cfg->error, sizeof cfg->error, fmt, ap);
+    va_end(ap);
+
+    cfg->show_usage = show_usage;
+    return ARGS_ERROR;
 }
 
 // Colors only when stdout is a terminal. Piping into a file or grep with raw
@@ -41,16 +32,15 @@ static int default_use_color(void) {
 }
 
 // Short flags can be combined, so "-mw" works like "-m -w".
-static ArgsStatus parse_short_flags(const char *flags, RenderOptions *render) {
+static ArgsStatus parse_short_flags(const char *flags, Config *cfg) {
     for (const char *f = flags; *f; f++) {
         switch (*f) {
-        case 'm': render->monday_first = 1; break;
-        case 'w': render->show_weeks = 1; break;
-        case 'n': render->use_color = 0; break;
+        case 'm': cfg->render.monday_first = 1; break;
+        case 'w': cfg->render.show_weeks = 1; break;
+        case 'n': cfg->render.use_color = 0; break;
         case 'h': return ARGS_HELP;
         default:
-            fprintf(stderr, "Unknown option: -%c\n", *f);
-            return ARGS_ERROR;
+            return fail(cfg, 1, "Unknown option: -%c", *f);
         }
     }
     return ARGS_OK;
@@ -64,8 +54,7 @@ static ArgsStatus resolve_target(const char *positional[], int npos,
     cfg->year = today->year;
 
     if (npos == 0 && !today->valid) {
-        fprintf(stderr, "Could not read the system clock, pass a month and year.\n");
-        return ARGS_ERROR;
+        return fail(cfg, 0, "Could not read the system clock, pass a month and year.");
     }
 
     if (npos == 1) {
@@ -75,31 +64,27 @@ static ArgsStatus resolve_target(const char *positional[], int npos,
         // two argument form, which nobody asks for in practice.
         if (parse_month(positional[0], &cfg->month)) {
             if (!today->valid) {
-                fprintf(stderr, "Could not read the system clock, pass a year too.\n");
-                return ARGS_ERROR;
+                return fail(cfg, 0, "Could not read the system clock, pass a year too.");
             }
         } else if (parse_year(positional[0], &cfg->year)) {
             cfg->view = VIEW_YEAR;
         } else {
-            fprintf(stderr, "Invalid month or year: %s\n", positional[0]);
-            return ARGS_ERROR;
+            return fail(cfg, 0, "Invalid month or year: %s", positional[0]);
         }
     } else if (npos == 2) {
         if (!parse_month(positional[0], &cfg->month)) {
-            fprintf(stderr, "Invalid month: %s\n", positional[0]);
-            return ARGS_ERROR;
+            return fail(cfg, 0, "Invalid month: %s", positional[0]);
         }
         if (!parse_year(positional[1], &cfg->year)) {
-            fprintf(stderr, "Invalid year: %s (use 1 to %d)\n", positional[1], MAX_YEAR);
-            return ARGS_ERROR;
+            return fail(cfg, 0, "Invalid year: %s (use 1 to %d)", positional[1], MAX_YEAR);
         }
     }
     return ARGS_OK;
 }
 
 ArgsStatus args_parse(int argc, char *argv[], const Today *today, Config *cfg) {
-    cfg->render.monday_first = 0;
-    cfg->render.show_weeks = 0;
+    memset(cfg, 0, sizeof *cfg);
+    cfg->use_events = 1;
     cfg->render.use_color = default_use_color();
 
     const char *positional[MAX_POSITIONAL];
@@ -108,25 +93,33 @@ ArgsStatus args_parse(int argc, char *argv[], const Today *today, Config *cfg) {
     for (int i = 1; i < argc; i++) {
         const char *arg = argv[i];
 
-        if (strcmp(arg, "--help") == 0) {
-            usage_print(argv[0], stdout);
-            return ARGS_HELP;
-        }
+        if (strcmp(arg, "--help") == 0) return ARGS_HELP;
+
         if (strcmp(arg, "--no-color") == 0) {
             cfg->render.use_color = 0;
             continue;
         }
+        if (strcmp(arg, "--no-events") == 0) {
+            cfg->use_events = 0;
+            continue;
+        }
+
+        // Takes a value, so it cannot live in the combinable short flags.
+        if (strcmp(arg, "-e") == 0 || strcmp(arg, "--events") == 0) {
+            if (i + 1 >= argc) return fail(cfg, 1, "Option %s needs a file name", arg);
+            cfg->events_path = argv[++i];
+            continue;
+        }
 
         if (arg[0] == '-' && arg[1] != '\0') {
-            ArgsStatus st = parse_short_flags(arg + 1, &cfg->render);
-            if (st == ARGS_HELP) usage_print(argv[0], stdout);
-            if (st == ARGS_ERROR) usage_print(argv[0], stderr);
-            if (st != ARGS_OK) return st;
+            ArgsStatus status = parse_short_flags(arg + 1, cfg);
+            if (status != ARGS_OK) return status;
             continue;
         }
 
         if (npos >= MAX_POSITIONAL) {
-            usage_print(argv[0], stderr);
+            // No message on purpose, the usage text says it all.
+            cfg->show_usage = 1;
             return ARGS_ERROR;
         }
         positional[npos++] = arg;

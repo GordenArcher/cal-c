@@ -13,6 +13,7 @@ CPPFLAGS  += -Isrc -MMD -MP
 PREFIX    ?= /usr/local
 BUILD_DIR := build
 OBJ_DIR   := $(BUILD_DIR)/obj
+TEST_DIR  := $(BUILD_DIR)/tests
 TARGET    := $(BUILD_DIR)/cal
 
 # find, not wildcard, so a new file is picked up at any depth. wildcard only
@@ -22,22 +23,54 @@ SRCS := $(shell find src -name '*.c')
 OBJS := $(SRCS:src/%.c=$(OBJ_DIR)/%.o)
 DEPS := $(OBJS:.o=.d)
 
-.PHONY: all run clean install uninstall
+# Every tests/**/test_*.c is its own program with its own main(). They link
+# against all the objects except main.o, which would clash with theirs.
+TEST_SRCS := $(shell find tests -name 'test_*.c')
+TEST_BINS := $(TEST_SRCS:tests/%.c=$(TEST_DIR)/%)
+LIB_OBJS  := $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+
+.PHONY: all run test sanitize clean install uninstall
 
 all: $(TARGET)
 
+# CFLAGS goes on the link line too. Flags like -fsanitize=address change what
+# the linker has to pull in, and without them the link fails with hundreds of
+# undefined ___asan_* symbols.
 $(TARGET): $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
-# Object folders mirror src/ (build/obj/core/date.o), so two files with the
-# same name in different domains can never overwrite each other. The mkdir
-# lives in the recipe because the subfolders are not known up front.
+# Object folders mirror src/ (build/obj/core/calendar/calendar.o), so two
+# files with the same name in different domains can never overwrite each
+# other. The mkdir lives in the recipe because the subfolders are not known
+# up front.
 $(OBJ_DIR)/%.o: src/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
 run: $(TARGET)
 	./$(TARGET)
+
+# -Itests lets test files write #include "support/test.h". Each binary depends
+# on the library objects, so a changed source or header recompiles the test.
+$(TEST_DIR)/%: tests/%.c $(LIB_OBJS)
+	@mkdir -p $(dir $@)
+	$(CC) -Isrc -Itests $(CFLAGS) -o $@ $< $(LIB_OBJS)
+
+# Runs every test binary even after a failure, so one broken module does not
+# hide the results of the others, then fails the build if any of them failed.
+test: $(TEST_BINS)
+	@failed=0; \
+	for t in $(TEST_BINS); do ./$$t || failed=1; done; \
+	exit $$failed
+
+# The same tests built with AddressSanitizer and UndefinedBehaviorSanitizer,
+# in their own folder. Never build sanitizer objects into build/ itself: make
+# only compares file times, not flags, so a later plain "make" would reuse
+# them and fail to link.
+SAN_FLAGS := -std=c11 -Wall -Wextra -pedantic -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer
+
+sanitize:
+	$(MAKE) BUILD_DIR=$(BUILD_DIR)/sanitize CFLAGS="$(SAN_FLAGS)" test
 
 clean:
 	rm -rf $(BUILD_DIR)

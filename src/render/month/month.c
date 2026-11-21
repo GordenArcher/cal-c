@@ -13,7 +13,8 @@ int month_block_width(const RenderOptions *opts) {
 }
 
 int month_render(int year, int month, int with_year, const RenderOptions *opts,
-                 const Today *today, Line out[LINES_PER_BLOCK]) {
+                 const Today *today, const EventList *events,
+                 Line out[LINES_PER_BLOCK]) {
     const int width = month_block_width(opts);
     const char *dim = style_apply(opts, ANSI_DIM);
     const char *reset = style_apply(opts, ANSI_RESET);
@@ -71,10 +72,15 @@ int month_render(int year, int month, int with_year, const RenderOptions *opts,
                 int weekend = (dow == SUNDAY || dow == SATURDAY);
                 int is_today = today->valid && year == today->year &&
                                month == today->month && day == today->day;
+                int has_event = eventlist_has_on(events, year, month, day);
 
-                line_add(ln, "%s%s%2d%s",
+                // Underline for events because it stacks with every other
+                // style. Today (reverse) and weekends (red) keep their look
+                // and an event on either one is still visible.
+                line_add(ln, "%s%s%s%2d%s",
                          is_today ? style_apply(opts, ANSI_REVERSE) : "",
                          weekend ? style_apply(opts, ANSI_RED) : "",
+                         has_event ? style_apply(opts, ANSI_UNDERLINE) : "",
                          day, reset);
             }
             if (c < DAYS_PER_WEEK - 1) line_add(ln, " ");

@@ -4,6 +4,8 @@
 #include "core/clock/clock.h"
 #include "render/style/options.h"
 
+enum { ARGS_ERROR_CAP = 256 };
+
 typedef enum {
     VIEW_MONTH,
     VIEW_YEAR
@@ -21,11 +23,19 @@ typedef struct {
     int month;
     int year;
     RenderOptions render;
+
+    // NULL means "pick the default file", see store_resolve_path.
+    const char *events_path;
+    int use_events;
+
+    // Filled when the status is ARGS_ERROR. error may be empty when the usage
+    // text alone says enough, show_usage asks the caller to print it too.
+    char error[ARGS_ERROR_CAP];
+    int show_usage;
 } Config;
 
-// ARGS_HELP and ARGS_ERROR mean everything worth printing already went out
-// (help to stdout, errors and usage to stderr), so the caller only has to
-// pick the exit code and stop.
+// Pure parsing: nothing is printed here. That keeps it testable, and main
+// stays the only place that decides what goes to stdout and stderr.
 ArgsStatus args_parse(int argc, char *argv[], const Today *today, Config *cfg);
 
 #endif
