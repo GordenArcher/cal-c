@@ -84,15 +84,53 @@ Most systems already ship a `cal` in `/usr/bin`. Make sure the install prefix co
 ## Project structure
 
 ```
-cal/
+cal-c/
 ├── src/
-│   └── cal.c        # entire program, single translation unit
-├── Makefile         # build, run, install, clean
+│   ├── main.c                  # wiring only: parse args, pick a view, print
+│   ├── core/                   # no I/O, no terminal, depends on nothing
+│   │   ├── calendar/
+│   │   │   ├── calendar.h      # constants, names, date math, ISO week
+│   │   │   └── calendar.c
+│   │   └── clock/
+│   │       ├── clock.h         # today's date from the system clock
+│   │       └── clock.c
+│   ├── render/                 # everything that draws, depends on core
+│   │   ├── style/
+│   │   │   ├── options.h       # RenderOptions
+│   │   │   ├── style.h         # ANSI codes, gated on color on/off
+│   │   │   └── style.c
+│   │   ├── line/
+│   │   │   ├── line.h          # fixed-width line buffer
+│   │   │   └── line.c
+│   │   ├── month/
+│   │   │   ├── month.h         # renders one month block
+│   │   │   └── month.c
+│   │   └── view/
+│   │       ├── view.h          # month view and year view layouts
+│   │       └── view.c
+│   └── cli/                    # command line, depends on core and render
+│       ├── args/
+│       │   ├── args.h          # flags and positional args into a Config
+│       │   └── args.c          # also holds the help text
+│       └── parse/
+│           ├── parse.h         # month and year parsing
+│           └── parse.c
+├── Makefile                    # build, run, install, clean
 ├── README.md
 └── .gitignore
 ```
 
 `build/` is created by `make` and is git-ignored.
+
+### Rules
+
+- **Dependencies point one way:** `main` -> `cli` -> `render` -> `core`. `core` never includes anything from `render` or `cli`, so the date math can be tested or reused without dragging in terminal code. If you catch yourself including upward, the code is in the wrong folder.
+- **At most 3 files per folder.** When a folder is full, the new module gets its own subfolder.
+- **Includes are written from the `src` root** (`#include "core/calendar/calendar.h"`), never with `../`.
+
+### Adding a file
+
+Drop a `.c` file anywhere under `src/` and `make` picks it up at any depth.
 
 ## How it works
 
