@@ -85,6 +85,7 @@ static ArgsStatus resolve_target(const char *positional[], int npos,
 ArgsStatus args_parse(int argc, char *argv[], const Today *today, Config *cfg) {
     memset(cfg, 0, sizeof *cfg);
     cfg->use_events = 1;
+    cfg->use_holidays = 1;
     cfg->render.use_color = default_use_color();
 
     const char *positional[MAX_POSITIONAL];
@@ -103,11 +104,20 @@ ArgsStatus args_parse(int argc, char *argv[], const Today *today, Config *cfg) {
             cfg->use_events = 0;
             continue;
         }
+        if (strcmp(arg, "--no-holidays") == 0) {
+            cfg->use_holidays = 0;
+            continue;
+        }
 
         // Takes a value, so it cannot live in the combinable short flags.
         if (strcmp(arg, "-e") == 0 || strcmp(arg, "--events") == 0) {
             if (i + 1 >= argc) return fail(cfg, 1, "Option %s needs a file name", arg);
             cfg->events_path = argv[++i];
+            continue;
+        }
+        if (strcmp(arg, "-H") == 0 || strcmp(arg, "--holidays") == 0) {
+            if (i + 1 >= argc) return fail(cfg, 1, "Option %s needs a file name", arg);
+            cfg->holidays_path = argv[++i];
             continue;
         }
 

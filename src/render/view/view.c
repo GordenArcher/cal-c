@@ -13,48 +13,66 @@ enum {
     TITLE_CAP = 32
 };
 
-// Lists the month's events under the grid, in day order. The blank separator
-// line is only printed when there is something to list, so a month without
-// events looks exactly like it did before events existed.
+// Lists the month's marks under the grid, in day order. Holidays come before
+// events on a shared day and carry a '*' so they read as shared calendar
+// context; events keep their underlined day. The blank separator line only
+// appears when there is something to list, so a month without marks looks
+// exactly like it did before events and holidays existed.
 static void print_legend(FILE *out, int year, int month, const RenderOptions *opts,
-                         const EventList *events) {
-    if (!events) return;
+                         const EventList *events, const EventList *holidays) {
+    if (!events && !holidays) return;
 
     const int total = date_days_in_month(year, month);
     int printed_any = 0;
 
     for (int day = 1; day <= total; day++) {
-        for (size_t i = 0; i < events->count; i++) {
-            const Event *event = &events->items[i];
-            if (!event_occurs_on(event, year, month, day)) continue;
+        if (holidays) {
+            for (size_t i = 0; i < holidays->count; i++) {
+                const Event *holiday = &holidays->items[i];
+                if (!event_occurs_on(holiday, year, month, day)) continue;
 
-            if (!printed_any) fputc('\n', out);
-            printed_any = 1;
+                if (!printed_any) fputc('\n', out);
+                printed_any = 1;
 
-            fprintf(out, "%s%2d%s  %s\n",
-                    style_apply(opts, ANSI_UNDERLINE), day, style_apply(opts, ANSI_RESET),
-                    event->label);
+                fprintf(out, "%s*%2d%s  %s\n",
+                        style_apply(opts, ANSI_BOLD), day, style_apply(opts, ANSI_RESET),
+                        holiday->label);
+            }
+        }
+
+        if (events) {
+            for (size_t i = 0; i < events->count; i++) {
+                const Event *event = &events->items[i];
+                if (!event_occurs_on(event, year, month, day)) continue;
+
+                if (!printed_any) fputc('\n', out);
+                printed_any = 1;
+
+                fprintf(out, "%s%2d%s  %s\n",
+                        style_apply(opts, ANSI_UNDERLINE), day, style_apply(opts, ANSI_RESET),
+                        event->label);
+            }
         }
     }
 }
 
 void view_print_month(FILE *out, int year, int month, const RenderOptions *opts,
-                      const Today *today, const EventList *events) {
+                      const Today *today, const EventList *events, const EventList *holidays) {
     Line block[LINES_PER_BLOCK];
-    int used = month_render(year, month, 1, opts, today, events, block);
+    int used = month_render(year, month, 1, opts, today, events, holidays, block);
 
     for (int i = 0; i < HEADER_LINES + used; i++) {
         fputs(block[i].text, out);
         fputc('\n', out);
     }
-    print_legend(out, year, month, opts, events);
+    print_legend(out, year, month, opts, events, holidays);
 }
 
 // Builds three blocks per row group and prints them line by line. This only
 // works because month_render pads every line to a constant visible width. If
 // that padding ever changes, the columns will drift apart.
 void view_print_year(FILE *out, int year, const RenderOptions *opts,
-                     const Today *today, const EventList *events) {
+                     const Today *today, const EventList *events, const EventList *holidays) {
     const int width = month_block_width(opts);
     const int total_width = YEAR_COLUMNS * width + (YEAR_COLUMNS - 1) * COLUMN_GAP;
 
@@ -68,7 +86,7 @@ void view_print_year(FILE *out, int year, const RenderOptions *opts,
         int rows = HEADER_LINES;
 
         for (int k = 0; k < YEAR_COLUMNS; k++) {
-            int used = month_render(year, m + k, 0, opts, today, events, blocks[k]);
+            int used = month_render(year, m + k, 0, opts, today, events, holidays, blocks[k]);
             if (HEADER_LINES + used > rows) rows = HEADER_LINES + used;
         }
 

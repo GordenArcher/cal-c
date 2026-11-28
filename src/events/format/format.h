@@ -28,6 +28,11 @@ FormatStatus format_parse_date(const char *text, Event *out);
 // no I/O, so every edge case can be tested without touching a file.
 FormatStatus format_parse_line(const char *line, Event *out);
 
+// Trims and validates the part after the '|' of a line. Shared with the
+// holidays store, whose lines carry the same labels but a different date
+// syntax, so both files refuse the same labels for the same reasons.
+FormatStatus format_parse_label(const char *text, char *out, size_t cap);
+
 // Writes the file representation of an event, without a newline. Returns the
 // length written, or -1 when it does not fit in cap.
 int format_line(const Event *event, char *buf, size_t cap);

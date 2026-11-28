@@ -9,6 +9,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "core/file/readline.h"
+#include "core/path/path.h"
 #include "events/format/format.h"
 
 enum {
@@ -19,21 +21,11 @@ enum {
 #define DEFAULT_FILE_NAME ".cal_events"
 #define ENV_EVENTS_PATH   "CAL_EVENTS"
 
-// snprintf returns the length it WANTED to write, so "fits" means it is
-// positive and strictly below cap (room left for the terminating NUL).
-static int fits(int written, size_t cap) {
-    return written > 0 && (size_t)written < cap;
-}
-
+// The holiday store resolves its own file with the same rule, so the lookup
+// itself lives in core/path and this is only the events naming.
 int store_resolve_path(const char *explicit_path, char *buf, size_t cap) {
-    if (explicit_path) return fits(snprintf(buf, cap, "%s", explicit_path), cap);
-
-    const char *from_env = getenv(ENV_EVENTS_PATH);
-    if (from_env && from_env[0] != '\0') return fits(snprintf(buf, cap, "%s", from_env), cap);
-
-    const char *home = getenv("HOME");
-    if (!home || home[0] == '\0') return 0;
-    return fits(snprintf(buf, cap, "%s/%s", home, DEFAULT_FILE_NAME), cap);
+    return path_first_available(explicit_path, getenv(ENV_EVENTS_PATH),
+                                getenv("HOME"), DEFAULT_FILE_NAME, buf, cap);
 }
 
 static void warn_line(FILE *warn, const char *path, int lineno, const char *reason) {
@@ -47,17 +39,11 @@ StoreStatus store_load(const char *path, EventList *out, FILE *warn) {
     char buf[FORMAT_LINE_CAP];
     int lineno = 0;
 
-    while (fgets(buf, sizeof buf, f)) {
+    LineStatus line_status;
+    while ((line_status = file_read_line(f, buf, sizeof buf)) != LINE_EOF) {
         lineno++;
 
-        // fgets stops at the buffer size, not at the end of the line. A line
-        // that filled the buffer without a newline is longer than any valid
-        // event, so throw away the rest of it. If we did not, the leftover
-        // tail would be read as the next "line" and produce a bogus warning.
-        size_t len = strlen(buf);
-        if (len == sizeof buf - 1 && buf[len - 1] != '\n') {
-            int c;
-            while ((c = fgetc(f)) != EOF && c != '\n') {}
+        if (line_status == LINE_TOO_LONG) {
             warn_line(warn, path, lineno, "line too long");
             continue;
         }

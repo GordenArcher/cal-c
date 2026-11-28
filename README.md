@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/GordenArcher/cal-c/actions/workflows/ci.yml/badge.svg)](https://github.com/GordenArcher/cal-c/actions/workflows/ci.yml)
 
-A rich terminal calendar written in C. Show a month or a whole year, highlight today, keep your own events, and display ISO week numbers. No dependencies beyond a C compiler and a POSIX system.
+A rich terminal calendar written in C. Show a month or a whole year, highlight today, keep your own events and a shared holidays layer, and display ISO week numbers. No dependencies beyond a C compiler and a POSIX system.
 
 ```
     October 2026
@@ -24,6 +24,7 @@ Su Mo Tu We Th Fr Sa
 - **Events**: days with events are underlined and listed under the month
 - `mycal add 12-25 Christmas` to add an event without opening a file
 - `mycal list` shows events by number, `mycal remove 2` deletes one safely
+- **Holidays**: a read-only layer from `~/.cal_holidays`, bold in the grid, with fixed dates and movable rules (Easter, nth and last weekday)
 - ISO 8601 week numbers, including year-boundary weeks
 - Sunday-first or Monday-first layout
 - Month names accepted as input (`oct`, `october`)
@@ -68,6 +69,8 @@ mycal remove [-e FILE] LINE
 | `-n`, `--no-color`    | Disable colors (also honours the `NO_COLOR` env)   |
 | `-e`, `--events FILE` | Read events from FILE                              |
 | `--no-events`         | Do not load any events                             |
+| `-H`, `--holidays FILE` | Read holidays from FILE                          |
+| `--no-holidays`       | Do not load any holidays                           |
 | `-h`, `--help`        | Show help                                          |
 
 Short flags can be combined, so `-mw` is the same as `-m -w`.
@@ -138,7 +141,44 @@ Removing is careful with your file:
 - The new file is written next to the old one and swapped in with a rename, so a crash or a full disk leaves your original untouched.
 - A symlinked events file stays a symlink, and file permissions are kept.
 
-### Exit codes
+## Holidays
+
+Holidays are a read-only layer on top of events. They live in their own file and never appear in `mycal list` or `mycal remove`, so a shared holiday calendar cannot be edited by accident.
+
+```
+# shared holidays
+12-25|Christmas
+easter|Easter
+easter+1|Easter Monday
+4th-thu-11|Thanksgiving       <- 4th Thursday of November
+last-mon-5|Memorial Day       <- last Monday of May
+2027-03-15|Company day        <- one year only
+```
+
+The date may be:
+
+| Form | Meaning |
+| ---- | ------- |
+| `YYYY-MM-DD` | one specific day |
+| `MM-DD` | every year, `02-29` only in leap years |
+| `easter` | Easter Sunday |
+| `easter+N`, `easter-N` | N days after or before Easter, up to 100 |
+| `1st-mon-1` to `5th-mon-1` | the nth weekday of a month |
+| `last-mon-5` | the last weekday of a month |
+
+Weekday names are `sun` to `sat`, or spelled out, in any case. A rule with no day in the requested year is skipped quietly: a 5th Monday that February does not have, a `02-29` in a common year, or an offset that lands outside the year.
+
+**Which file is used**, first match wins:
+
+1. `-H FILE` on the command line
+2. the `CAL_HOLIDAYS` environment variable
+3. `~/.cal_holidays`
+
+A missing default file means no holidays. A missing file you named with `-H` is an error. `--no-holidays` skips the layer for one run.
+
+**What you see:** holiday days are bold, event days are underlined, and a day with both gets both. Bold was picked instead of a second color because it stacks with today's reverse video and the red weekends, so a holiday on either one never loses its highlight. Under the month view, holidays are listed with a `*` before the day and come before events on a shared day.
+
+## Exit codes
 
 | Code | Meaning                                                      |
 | ---- | ------------------------------------------------------------ |
@@ -164,10 +204,11 @@ make test
 ```
 
 ```
-ok    tests/render/test_month.c (420 checks)
+ok    tests/render/test_month.c (425 checks)
+ok    tests/holidays/test_rules.c (74 checks)
 ok    tests/events/test_store.c (147 checks)
 ...
-ok    tests/smoke/smoke.sh (30 checks)
+ok    tests/smoke/smoke.sh (40 checks)
 ```
 
 Every `tests/**/test_*.c` is its own program with its own `main()`, linked against the whole program except `main.c`. There is no framework, only a few small headers in `tests/support/` (assertion macros, test data builders, and a helper that runs a subcommand and captures what it printed). All of them run even when one fails, and `make test` exits non-zero if any did.
@@ -176,9 +217,10 @@ What is covered:
 
 - **Calendar math**: known dates checked against Python, and a walk over every single day from 0001-01-01 to 9999-12-31 checking weekday, day-of-year and ISO week stay consistent between neighbours.
 - **Events**: parsing and formatting edge cases, reading, appending and removing in real files (missing trailing newline, overlong lines, CRLF, bad lines, symlinks, permissions, a failing write), path resolution.
-- **Rendering**: output captured from `view_*` into a temp file, constant line widths (the year view depends on it), underline and highlight rules.
+- **Holidays**: rule parsing against known Easter dates, offsets, nth and last weekday, bad rules, rules that do not land in the requested year, loading with warnings, and path resolution.
+- **Rendering**: output captured from `view_*` into a temp file, constant line widths (the year view depends on it), underline and bold rules, today and weekend stacking, the holiday marker in the legend.
 - **Command line**: flag parsing, the single-argument rule, every error message, and the `add`, `list` and `remove` commands working together.
-- **End to end**: `tests/smoke/smoke.sh` runs the real binary through add, list, view and remove, since `main.c` is the one file the unit tests cannot link against. It runs under the sanitizers too.
+- **End to end**: `tests/smoke/smoke.sh` runs the real binary through add, list, view, remove and holidays, since `main.c` is the one file the unit tests cannot link against. It runs under the sanitizers too.
 
 To catch memory bugs, run the same suite under the AddressSanitizer and UndefinedBehaviorSanitizer:
 
@@ -199,13 +241,19 @@ cal-c/
 │       └── ci.yml              # build, test and sanitizers on Ubuntu and macOS
 ├── src/
 │   ├── main.c                  # wiring only: dispatch the command, own all printing
-│   ├── core/                   # no I/O, no terminal, depends on nothing
+│   ├── core/                   # no terminal code, depends on nothing above it
 │   │   ├── calendar/
 │   │   │   ├── calendar.h      # constants, names, date math, ISO week
 │   │   │   └── calendar.c
-│   │   └── clock/
-│   │       ├── clock.h         # today's date from the system clock
-│   │       └── clock.c
+│   │   ├── clock/
+│   │   │   ├── clock.h         # today's date from the system clock
+│   │   │   └── clock.c
+│   │   ├── file/
+│   │   │   ├── readline.h      # one logical line, overlong tails discarded
+│   │   │   └── readline.c
+│   │   └── path/
+│   │       ├── path.h          # explicit -> env -> ~/name, pure string work
+│   │       └── path.c
 │   ├── events/                 # the events feature (depends on core)
 │   │   ├── model/
 │   │   │   ├── event.h         # Event, EventList, "does it occur on this day"
@@ -216,7 +264,14 @@ cal-c/
 │   │   └── store/
 │   │       ├── store.h         # load, append, remove, find the events file
 │   │       └── store.c
-│   ├── render/                 # everything that draws (depends on core, events)
+│   ├── holidays/               # read-only layer (depends on events)
+│   │   ├── rules/
+│   │   │   ├── rules.h         # fixed dates, Easter offsets, nth/last weekday
+│   │   │   └── rules.c
+│   │   └── store/
+│   │       ├── store.h         # expand a holiday file into concrete dates
+│   │       └── store.c
+│   ├── render/                 # everything that draws (depends on core, events, holidays)
 │   │   ├── style/
 │   │   │   ├── options.h       # RenderOptions
 │   │   │   ├── style.h         # ANSI codes, gated on color on/off
@@ -259,10 +314,15 @@ cal-c/
 │   │   ├── fixtures.h          # shared test data builders
 │   │   └── command.h           # run a subcommand and capture what it printed
 │   ├── core/
-│   │   └── test_calendar.c
+│   │   ├── test_calendar.c
+│   │   ├── test_path.c
+│   │   └── test_readline.c
 │   ├── events/
 │   │   ├── test_event.c
 │   │   ├── test_format.c
+│   │   └── test_store.c
+│   ├── holidays/
+│   │   ├── test_rules.c
 │   │   └── test_store.c
 │   ├── render/
 │   │   ├── test_month.c
@@ -286,7 +346,7 @@ cal-c/
 
 ### Rules
 
-- **Dependencies point one way:** `main` -> `cli` -> `render` -> `events` -> `core`. `core` never includes anything above it, so the date math can be tested or reused without dragging in terminal code or files. If you catch yourself including upward, the code is in the wrong folder.
+- **Dependencies point one way:** `main` -> `cli` -> `render` -> `holidays` -> `events` -> `core`. `core` never includes anything above it, so the date math, path lookup and line reader can be tested or reused without dragging in terminal code or the features. If you catch yourself including upward, the code is in the wrong folder.
 - **Only `main.c` touches stdout and stderr** (plus the modules that take a `FILE *`). Argument parsing returns its error message instead of printing it, and the views and the `add`, `list` and `remove` commands write to a `FILE *` they are given, which is what makes them testable.
 - **At most 3 files per folder.** When a folder is full, the new module gets its own subfolder.
 - **Includes are written from the `src` root** (`#include "core/calendar/calendar.h"`), never with `../`.
@@ -303,6 +363,8 @@ Drop a `.c` file anywhere under `src/` and `make` picks it up at any depth. A ne
 - **Year view alignment**: every rendered month line is padded to a constant visible width, so three months can be printed side by side even though the lines contain invisible ANSI color codes. A test guards this for every month and layout.
 - **Safe appends**: `mycal add` checks whether the file ends with a newline first, so a hand-edited file never gets two events glued onto one line.
 - **Safe removal**: `mycal remove` copies the file without the chosen line into a temp file next to it, syncs it to disk and renames it over the original. A rename is atomic, so you get the old file or the new one, never half of each. The path is resolved first, so a symlinked events file is updated in place and stays a symlink.
+- **Holiday rules**: resolved at load time into concrete dates, so the renderer never sees a rule. Easter uses the anonymous Gregorian computus; an offset walks one day at a time under a small cap; the nth weekday comes from the first weekday of the month and the last from the last day. A rule that lands outside the requested year is skipped rather than relabelled.
+- **Bold holidays**: holidays are bold and events underlined because both attributes stack. A color for holidays would be painted over by the red weekend or the reverse today style, hiding the one thing the color was meant to show.
 
 ## Roadmap
 
@@ -310,7 +372,7 @@ Drop a `.c` file anywhere under `src/` and `make` picks it up at any depth. A ne
 - [x] `mycal add`
 - [x] Test suite
 - [x] `mycal list` and `mycal remove` to manage events without a text editor
-- [ ] Holidays layer loaded from data files, so movable holidays are not hardcoded
+- [x] Holidays layer loaded from data files, so movable holidays are not hardcoded
 - [ ] Interactive mode with arrow-key month navigation (ncurses)
 - [x] CI that runs `make test` and `make sanitize` on every push
 - [ ] Filter `list` by month or year, and remove several events at once

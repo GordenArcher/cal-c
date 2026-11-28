@@ -10,6 +10,7 @@
 #include "core/clock/clock.h"
 #include "events/model/event.h"
 #include "events/store/store.h"
+#include "holidays/store/store.h"
 #include "render/view/view.h"
 
 typedef int (*CommandFn)(const char *prog, int argc, char *argv[], FILE *out, FILE *err);
@@ -50,6 +51,33 @@ static int load_events(const Config *cfg, EventList *events) {
     return 1;
 }
 
+// Same contract as load_events: returns 0 only when the run should stop.
+static int load_holidays(const Config *cfg, EventList *holidays) {
+    if (!cfg->use_holidays) return 1;
+
+    char path[HOLIDAYS_PATH_CAP];
+    if (!holidays_resolve_path(cfg->holidays_path, path, sizeof path)) return 1;
+
+    switch (holidays_load(path, cfg->year, holidays, stderr)) {
+    case HOLIDAYS_OK:
+        return 1;
+    case HOLIDAYS_NOT_FOUND:
+        // A missing default holidays file just means none are installed. A
+        // missing file the user named is a mistake worth reporting.
+        if (cfg->holidays_path) {
+            fprintf(stderr, "Cannot open holidays file: %s\n", path);
+            return 0;
+        }
+        return 1;
+    case HOLIDAYS_ERROR:
+        // Holidays are context around the calendar, not the calendar itself,
+        // so a broken file warns and the grid still prints.
+        fprintf(stderr, "Could not read holidays file: %s\n", path);
+        return 1;
+    }
+    return 1;
+}
+
 // Wiring only: decide which command runs, hand it its inputs, own all the
 // printing to stdout and stderr. Logic belongs in the domain folders.
 int main(int argc, char *argv[]) {
@@ -79,15 +107,19 @@ int main(int argc, char *argv[]) {
 
     EventList events;
     eventlist_init(&events);
+    EventList holidays;
+    eventlist_init(&holidays);
 
-    if (!load_events(&cfg, &events)) {
+    if (!load_events(&cfg, &events) || !load_holidays(&cfg, &holidays)) {
         eventlist_free(&events);
+        eventlist_free(&holidays);
         return EXIT_FAILURE;
     }
 
-    if (cfg.view == VIEW_YEAR) view_print_year(stdout, cfg.year, &cfg.render, &today, &events);
-    else                       view_print_month(stdout, cfg.year, cfg.month, &cfg.render, &today, &events);
+    if (cfg.view == VIEW_YEAR) view_print_year(stdout, cfg.year, &cfg.render, &today, &events, &holidays);
+    else                       view_print_month(stdout, cfg.year, cfg.month, &cfg.render, &today, &events, &holidays);
 
     eventlist_free(&events);
+    eventlist_free(&holidays);
     return EXIT_SUCCESS;
 }

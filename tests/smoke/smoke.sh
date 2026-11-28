@@ -17,7 +17,7 @@ trap 'rm -rf "$WORK"' EXIT
 # A private home with no events, and no inherited settings.
 HOME=$WORK
 export HOME
-unset CAL_EVENTS NO_COLOR
+unset CAL_EVENTS CAL_HOLIDAYS NO_COLOR
 
 checks=0
 failures=0
@@ -83,6 +83,39 @@ check_has "yearly event shows in its month" "$OUT" "25  Christmas"
 run --no-events -n 12 2026
 check_lacks "--no-events hides them" "$OUT" "Christmas"
 
+# ---- holidays: shared dates come from their own file ----
+cat > "$HOME/.cal_holidays" <<'EOF'
+# shared calendar
+04-05|Easter
+easter+1|Easter Monday
+4th-thu-11|Thanksgiving
+last-mon-5|Memorial Day
+EOF
+
+run -n 4 2026
+check_status "month view with holidays" 0 "$CODE"
+check_has "easter rule resolves" "$OUT" "* 5  Easter"
+check_has "easter offset follows" "$OUT" "* 6  Easter Monday"
+check_lacks "a holiday stays in its month" "$OUT" "Thanksgiving"
+
+run -n 11 2026
+check_has "nth weekday rule resolves" "$OUT" "*26  Thanksgiving"
+
+run --no-holidays -n 4 2026
+check_lacks "--no-holidays hides them" "$OUT" "Easter"
+
+cat > "$WORK/holidays.txt" <<'EOF'
+05-01|Labour Day
+EOF
+run -H "$WORK/holidays.txt" -n 5 2026
+check_has "-H reads the named file" "$OUT" "* 1  Labour Day"
+
+run -H "$WORK/missing-holidays.txt" -n 4 2026
+check_status "named holidays file that does not exist" 1 "$CODE"
+
+run -H
+check_status "-H without a value" 1 "$CODE"
+
 # ---- removing ----
 run remove 2
 check_status "remove" 0 "$CODE"
@@ -126,6 +159,7 @@ check_status "--help" 0 "$CODE"
 check_has "help documents add" "$OUT" "add [-e FILE]"
 check_has "help documents list" "$OUT" "list [-e FILE]"
 check_has "help documents remove" "$OUT" "remove [-e FILE] LINE"
+check_has "help documents holidays" "$OUT" "-H, --holidays FILE"
 
 if [ "$failures" -eq 0 ]; then
     echo "ok    tests/smoke/smoke.sh ($checks checks)"

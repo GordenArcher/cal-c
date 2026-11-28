@@ -143,6 +143,29 @@ static void test_event_options(void) {
     CHECK_INT(cfg.use_events, 0);
 }
 
+static void test_holiday_options(void) {
+    Config cfg;
+
+    run(&cfg, &TODAY, NULL);
+    CHECK_INT(cfg.use_holidays, 1);
+    CHECK(cfg.holidays_path == NULL);
+
+    CHECK_INT(run(&cfg, &TODAY, "-H", "holidays.txt", NULL), ARGS_OK);
+    CHECK_STR(cfg.holidays_path, "holidays.txt");
+    CHECK_INT(cfg.use_holidays, 1);
+
+    CHECK_INT(run(&cfg, &TODAY, "--holidays", "/tmp/h.txt", "10", "2026", NULL), ARGS_OK);
+    CHECK_STR(cfg.holidays_path, "/tmp/h.txt");
+    CHECK_INT(cfg.month, 10);               // the file name must not be read as a month
+
+    CHECK_INT(run(&cfg, &TODAY, "--no-holidays", NULL), ARGS_OK);
+    CHECK_INT(cfg.use_holidays, 0);
+
+    CHECK_INT(run(&cfg, &TODAY, "-H", NULL), ARGS_ERROR);
+    CHECK(strstr(cfg.error, "needs a file name") != NULL);
+    CHECK_INT(cfg.show_usage, 1);
+}
+
 static void test_events_option_needs_a_value(void) {
     Config cfg;
 
@@ -217,6 +240,7 @@ int main(void) {
     RUN_TEST(test_flags_work_before_and_after_positionals);
     RUN_TEST(test_color_flags);
     RUN_TEST(test_event_options);
+    RUN_TEST(test_holiday_options);
     RUN_TEST(test_events_option_needs_a_value);
     RUN_TEST(test_help);
     RUN_TEST(test_bad_input_gives_a_message);

@@ -28,6 +28,10 @@ typedef struct {
     const char *events_path;
     int use_events;
 
+    // Same rule for the read-only holidays layer, see holidays_resolve_path.
+    const char *holidays_path;
+    int use_holidays;
+
     // Filled when the status is ARGS_ERROR. error may be empty when the usage
     // text alone says enough, show_usage asks the caller to print it too.
     char error[ARGS_ERROR_CAP];

@@ -13,7 +13,7 @@ int month_block_width(const RenderOptions *opts) {
 }
 
 int month_render(int year, int month, int with_year, const RenderOptions *opts,
-                 const Today *today, const EventList *events,
+                 const Today *today, const EventList *events, const EventList *holidays,
                  Line out[LINES_PER_BLOCK]) {
     const int width = month_block_width(opts);
     const char *dim = style_apply(opts, ANSI_DIM);
@@ -73,13 +73,17 @@ int month_render(int year, int month, int with_year, const RenderOptions *opts,
                 int is_today = today->valid && year == today->year &&
                                month == today->month && day == today->day;
                 int has_event = eventlist_has_on(events, year, month, day);
+                int has_holiday = eventlist_has_on(holidays, year, month, day);
 
-                // Underline for events because it stacks with every other
-                // style. Today (reverse) and weekends (red) keep their look
-                // and an event on either one is still visible.
-                line_add(ln, "%s%s%s%2d%s",
+                // Underline marks events and bold marks holidays. Both stack
+                // with the other styles, so today (reverse) and weekends (red)
+                // keep their look and the day still shows what it is. Bold is
+                // used instead of a second color because the red weekend and
+                // reverse today would otherwise paint over the holiday color.
+                line_add(ln, "%s%s%s%s%2d%s",
                          is_today ? style_apply(opts, ANSI_REVERSE) : "",
                          weekend ? style_apply(opts, ANSI_RED) : "",
+                         has_holiday ? style_apply(opts, ANSI_BOLD) : "",
                          has_event ? style_apply(opts, ANSI_UNDERLINE) : "",
                          day, reset);
             }

@@ -85,20 +85,27 @@ FormatStatus format_parse_line(const char *line, Event *out) {
     FormatStatus status = format_parse_date(date, &parsed);
     if (status != FORMAT_OK) return status;
 
-    const char *label = sep + 1;
+    FormatStatus label_status = format_parse_label(sep + 1, parsed.label, sizeof parsed.label);
+    if (label_status != FORMAT_OK) return label_status;
+
+    *out = parsed;
+    return FORMAT_OK;
+}
+
+FormatStatus format_parse_label(const char *text, char *out, size_t cap) {
+    const char *label = text;
     while (isspace((unsigned char)*label)) label++;
 
-    // Trailing whitespace includes the \r of a Windows line ending and the
-    // \n fgets leaves on the line, so both are handled here once.
+    // Trailing whitespace includes the \r of a Windows line ending, which is
+    // the only line ending a label can end with once the \n is gone.
     size_t label_len = strlen(label);
     while (label_len > 0 && isspace((unsigned char)label[label_len - 1])) label_len--;
 
     if (label_len == 0) return FORMAT_EMPTY_LABEL;
-    if (label_len >= EVENT_LABEL_CAP) return FORMAT_LABEL_TOO_LONG;
+    if (label_len >= cap) return FORMAT_LABEL_TOO_LONG;
 
-    memcpy(parsed.label, label, label_len);
-    parsed.label[label_len] = '\0';
-    *out = parsed;
+    memcpy(out, label, label_len);
+    out[label_len] = '\0';
     return FORMAT_OK;
 }
 
