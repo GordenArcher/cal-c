@@ -69,11 +69,27 @@ static void test_year_range(void) {
     CHECK(!parse_year("99999999999999999999", &y));   // overflows long, must not wrap into range
 }
 
+static void test_line_numbers(void) {
+    int n = 0;
+
+    CHECK(parse_line_number("1", &n));   CHECK_INT(n, 1);
+    CHECK(parse_line_number("42", &n));  CHECK_INT(n, 42);
+
+    CHECK(!parse_line_number("0", &n));            // lines start at 1
+    CHECK(!parse_line_number("-1", &n));
+    CHECK(!parse_line_number("", &n));
+    CHECK(!parse_line_number("2x", &n));
+    CHECK(!parse_line_number("1.5", &n));
+    CHECK(!parse_line_number("abc", &n));
+    CHECK(!parse_line_number("99999999999999999999", &n));   // overflow must not wrap into range
+}
+
 int main(void) {
     RUN_TEST(test_month_by_number);
     RUN_TEST(test_month_by_name);
     RUN_TEST(test_month_name_prefix_rules);
     RUN_TEST(test_month_rejects_trailing_garbage);
     RUN_TEST(test_year_range);
+    RUN_TEST(test_line_numbers);
     return test_report(__FILE__);
 }

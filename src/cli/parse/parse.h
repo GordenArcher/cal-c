@@ -5,4 +5,7 @@
 int parse_month(const char *s, int *out);
 int parse_year(const char *s, int *out);
 
+// A line number as shown by "list": a whole number of 1 or more.
+int parse_line_number(const char *s, int *out);
+
 #endif

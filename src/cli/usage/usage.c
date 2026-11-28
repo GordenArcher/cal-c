@@ -5,8 +5,9 @@ void usage_print(const char *prog, FILE *to) {
         "Usage: %s [options] [[month] year]\n"
         "       %s add [-e FILE] DATE LABEL...\n"
         "       %s list [-e FILE]\n"
+        "       %s remove [-e FILE] LINE\n"
         "\n",
-        prog, prog, prog);
+        prog, prog, prog, prog);
 
     fprintf(to,
         "  %s              current month\n"
@@ -35,6 +36,7 @@ void usage_print(const char *prog, FILE *to) {
 
     fprintf(to,
         "  Add one from the shell:  %s add 12-25 Christmas\n"
-        "  See them numbered:       %s list\n",
-        prog, prog);
+        "  See them numbered:       %s list\n"
+        "  Delete one by number:    %s remove 2\n",
+        prog, prog, prog);
 }

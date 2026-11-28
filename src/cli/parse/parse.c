@@ -51,3 +51,10 @@ int parse_year(const char *s, int *out) {
     *out = n;
     return 1;
 }
+
+int parse_line_number(const char *s, int *out) {
+    int n;
+    if (!parse_number(s, &n) || n < 1) return 0;
+    *out = n;
+    return 1;
+}

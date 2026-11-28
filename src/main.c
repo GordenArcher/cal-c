@@ -4,6 +4,7 @@
 
 #include "cli/commands/add/add.h"
 #include "cli/commands/list/list.h"
+#include "cli/commands/remove/remove.h"
 #include "cli/args/args.h"
 #include "cli/usage/usage.h"
 #include "core/clock/clock.h"
@@ -20,6 +21,7 @@ static const struct {
 } COMMANDS[] = {
     {"add", add_run},
     {"list", list_run},
+    {"remove", remove_run},
 };
 
 // Returns 0 only when the run should stop with an error.
