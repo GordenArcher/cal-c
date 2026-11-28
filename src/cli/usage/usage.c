@@ -4,8 +4,9 @@ void usage_print(const char *prog, FILE *to) {
     fprintf(to,
         "Usage: %s [options] [[month] year]\n"
         "       %s add [-e FILE] DATE LABEL...\n"
+        "       %s list [-e FILE]\n"
         "\n",
-        prog, prog);
+        prog, prog, prog);
 
     fprintf(to,
         "  %s              current month\n"
@@ -32,5 +33,8 @@ void usage_print(const char *prog, FILE *to) {
         "  MM-DD|label to repeat every year. Lines starting with # are ignored.\n",
         to);
 
-    fprintf(to, "  Add one from the shell:  %s add 12-25 Christmas\n", prog);
+    fprintf(to,
+        "  Add one from the shell:  %s add 12-25 Christmas\n"
+        "  See them numbered:       %s list\n",
+        prog, prog);
 }

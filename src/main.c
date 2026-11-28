@@ -3,12 +3,24 @@
 #include <string.h>
 
 #include "cli/commands/add/add.h"
+#include "cli/commands/list/list.h"
 #include "cli/args/args.h"
 #include "cli/usage/usage.h"
 #include "core/clock/clock.h"
 #include "events/model/event.h"
 #include "events/store/store.h"
 #include "render/view/view.h"
+
+typedef int (*CommandFn)(const char *prog, int argc, char *argv[], FILE *out, FILE *err);
+
+// Adding a subcommand is one line here plus its own module under cli/commands.
+static const struct {
+    const char *name;
+    CommandFn run;
+} COMMANDS[] = {
+    {"add", add_run},
+    {"list", list_run},
+};
 
 // Returns 0 only when the run should stop with an error.
 static int load_events(const Config *cfg, EventList *events) {
@@ -39,8 +51,13 @@ static int load_events(const Config *cfg, EventList *events) {
 // Wiring only: decide which command runs, hand it its inputs, own all the
 // printing to stdout and stderr. Logic belongs in the domain folders.
 int main(int argc, char *argv[]) {
-    if (argc >= 2 && strcmp(argv[1], "add") == 0) {
-        return add_run(argv[0], argc - 2, argv + 2, stdout, stderr);
+    // A first argument that names a command hands the rest of the line to it.
+    if (argc >= 2) {
+        for (size_t i = 0; i < sizeof COMMANDS / sizeof COMMANDS[0]; i++) {
+            if (strcmp(argv[1], COMMANDS[i].name) == 0) {
+                return COMMANDS[i].run(argv[0], argc - 2, argv + 2, stdout, stderr);
+            }
+        }
     }
 
     Today today = clock_today();

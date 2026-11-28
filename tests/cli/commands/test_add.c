@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "support/command.h"
 #include "support/test.h"
 
 #include "cli/commands/add/add.h"
@@ -12,22 +13,10 @@ enum {
     LONG_LABEL = 200
 };
 
-typedef struct {
-    int code;
-    char out[OUTPUT_BUF];
-    char err[OUTPUT_BUF];
-} Result;
+typedef CommandResult Result;
 
 static void run(Result *r, int argc, char *argv[]) {
-    FILE *out = tmpfile();
-    FILE *err = tmpfile();
-
-    r->code = add_run("mycal", argc, argv, out, err);
-    test_slurp(out, r->out, sizeof r->out);
-    test_slurp(err, r->err, sizeof r->err);
-
-    fclose(out);
-    fclose(err);
+    command_run(add_run, r, argc, argv);
 }
 
 static int load(const char *path, EventList *list) {
