@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cli/commands/target/target.h"
 #include "events/format/format.h"
 #include "events/model/event.h"
 #include "events/store/store.h"
@@ -61,17 +62,12 @@ static LabelStatus build_label(int count, char *words[], char *out, size_t cap) 
 }
 
 int add_run(const char *prog, int argc, char *argv[], FILE *out, FILE *err) {
-    const char *explicit_path = NULL;
-    int next = 0;
+    const char *explicit_path;
+    int next;
 
-    if (argc > 0 && strcmp(argv[0], "-e") == 0) {
-        if (argc < 2) {
-            fprintf(err, "Option -e needs a file name\n");
-            print_add_usage(prog, err);
-            return EXIT_FAILURE;
-        }
-        explicit_path = argv[1];
-        next = 2;
+    if (!target_parse(argc, argv, &explicit_path, &next, err)) {
+        print_add_usage(prog, err);
+        return EXIT_FAILURE;
     }
 
     if (argc - next < 2) {
@@ -101,10 +97,7 @@ int add_run(const char *prog, int argc, char *argv[], FILE *out, FILE *err) {
     }
 
     char path[STORE_PATH_CAP];
-    if (!store_resolve_path(explicit_path, path, sizeof path)) {
-        fprintf(err, "No events file: use -e FILE, set CAL_EVENTS, or set HOME\n");
-        return EXIT_FAILURE;
-    }
+    if (!target_resolve(explicit_path, path, sizeof path, err)) return EXIT_FAILURE;
 
     if (store_append(path, &event) != STORE_OK) {
         fprintf(err, "Could not write to %s\n", path);
