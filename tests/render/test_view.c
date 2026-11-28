@@ -109,6 +109,8 @@ static void test_year_view_underlines_but_has_no_legend(void) {
     // Oct 31 and Nov 5 (both yearly): three distinct underlined days.
     CHECK_INT(test_count_substr(out, ANSI_UNDERLINE), 3);
     CHECK(strstr(out, "Team offsite") == NULL);
+
+    eventlist_free(&events);
 }
 
 static void test_year_view_shows_all_twelve_months(void) {
