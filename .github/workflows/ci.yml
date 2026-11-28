@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Let both systems finish even if one fails, so a macOS-only problem
+      # does not hide whether Linux is fine (and the other way around).
+      fail-fast: false
+      matrix:
+        include:
+          # Warnings are errors on Linux only. The gcc there is the one this
+          # was developed against, while a newer clang on macOS can flag
+          # things that are not bugs and would turn every push red.
+          - os: ubuntu-latest
+            strict: -Werror
+          - os: macos-latest
+            strict: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and test
+        run: make CFLAGS="-std=c11 -Wall -Wextra -pedantic -O2 ${{ matrix.strict }}" all test
+
+      - name: Sanitizers
+        run: make sanitize

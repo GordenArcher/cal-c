@@ -1,5 +1,7 @@
 # mycal
 
+[![CI](https://github.com/GordenArcher/cal-c/actions/workflows/ci.yml/badge.svg)](https://github.com/GordenArcher/cal-c/actions/workflows/ci.yml)
+
 A rich terminal calendar written in C. Show a month or a whole year, highlight today, keep your own events, and display ISO week numbers. No dependencies beyond a C compiler and a POSIX system.
 
 ```
@@ -153,6 +155,8 @@ make sanitize
 ```
 
 It builds into `build/sanitize/`, separate from the normal build, so the two never get mixed. (Mixing them is what causes a pile of `undefined symbol ___asan_*` link errors.) Leak detection is not available on every platform, for example Apple Silicon Macs, but invalid memory access and undefined behavior are still caught.
+
+GitHub Actions runs `make test` and `make sanitize` on Ubuntu and macOS for every push and pull request (`.github/workflows/ci.yml`).
 
 ## Project structure
 
