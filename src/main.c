@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "cli/add/add.h"
+#include "cli/commands/add/add.h"
 #include "cli/args/args.h"
 #include "cli/usage/usage.h"
 #include "core/clock/clock.h"

@@ -2,7 +2,7 @@
 
 #include "support/test.h"
 
-#include "cli/add/add.h"
+#include "cli/commands/add/add.h"
 #include "events/model/event.h"
 #include "events/store/store.h"
 

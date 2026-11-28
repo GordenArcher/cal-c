@@ -1,5 +1,5 @@
-#ifndef CAL_CLI_ADD_ADD_H
-#define CAL_CLI_ADD_ADD_H
+#ifndef CAL_CLI_COMMANDS_ADD_ADD_H
+#define CAL_CLI_COMMANDS_ADD_ADD_H
 
 #include <stdio.h>
 

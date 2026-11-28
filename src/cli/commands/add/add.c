@@ -1,4 +1,4 @@
-#include "cli/add/add.h"
+#include "cli/commands/add/add.h"
 
 #include <ctype.h>
 #include <stdlib.h>
