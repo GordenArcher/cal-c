@@ -58,9 +58,12 @@ $(TEST_DIR)/%: tests/%.c $(LIB_OBJS)
 
 # Runs every test binary even after a failure, so one broken module does not
 # hide the results of the others, then fails the build if any of them failed.
-test: $(TEST_BINS)
+# The smoke test runs the real binary end to end, which covers main.c (command
+# dispatch, exit codes) that the unit tests are not linked against.
+test: $(TEST_BINS) $(TARGET)
 	@failed=0; \
 	for t in $(TEST_BINS); do ./$$t || failed=1; done; \
+	sh tests/smoke/smoke.sh $(TARGET) || failed=1; \
 	exit $$failed
 
 # The same tests built with AddressSanitizer and UndefinedBehaviorSanitizer,
