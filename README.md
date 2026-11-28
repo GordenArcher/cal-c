@@ -263,4 +263,4 @@ Drop a `.c` file anywhere under `src/` and `make` picks it up at any depth. A ne
 
 ## License
 
-MIT
+MIT, see [LICENSE](LICENSE).
