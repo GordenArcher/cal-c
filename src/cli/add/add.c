@@ -27,7 +27,7 @@ static void print_add_usage(const char *prog, FILE *to) {
 }
 
 // Joins the remaining arguments with single spaces, so both
-//   cal add 12-25 Christmas Day   and   cal add 12-25 "Christmas Day"
+//   mycal add 12-25 Christmas Day   and   mycal add 12-25 "Christmas Day"
 // work. Control characters are refused because a newline inside a label would
 // split one event into two lines of the file.
 static LabelStatus build_label(int count, char *words[], char *out, size_t cap) {

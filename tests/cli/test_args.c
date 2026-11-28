@@ -12,12 +12,12 @@ enum { MAX_TEST_ARGS = 16 };
 static const Today TODAY = {1, 2026, 11, 21};
 static const Today NO_CLOCK = {0, 0, 0, 0};
 
-// Calls args_parse as if the user typed: cal <words...>. The list of words
+// Calls args_parse as if the user typed: mycal <words...>. The list of words
 // ends with NULL.
 static ArgsStatus run(Config *cfg, const Today *today, ...) {
     char *argv[MAX_TEST_ARGS];
     int argc = 0;
-    argv[argc++] = "cal";
+    argv[argc++] = "mycal";
 
     va_list ap;
     va_start(ap, today);

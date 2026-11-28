@@ -1,4 +1,4 @@
-# cal
+# mycal
 
 A rich terminal calendar written in C. Show a month or a whole year, highlight today, keep your own events, and display ISO week numbers. No dependencies beyond a C compiler and a POSIX system.
 
@@ -20,7 +20,7 @@ Su Mo Tu We Th Fr Sa
 - Month view and full-year view (three months per row)
 - Today is highlighted, weekends are colored
 - **Events**: days with events are underlined and listed under the month
-- `cal add 12-25 Christmas` to add an event without opening a file
+- `mycal add 12-25 Christmas` to add an event without opening a file
 - ISO 8601 week numbers, including year-boundary weeks
 - Sunday-first or Monday-first layout
 - Month names accepted as input (`oct`, `october`)
@@ -32,27 +32,27 @@ Su Mo Tu We Th Fr Sa
 Requires `gcc` or `clang` and `make`.
 
 ```bash
-make          # builds build/cal
+make          # builds build/mycal
 make test     # builds and runs the test suite
 ```
 
 ## Usage
 
 ```bash
-cal [options] [[month] year]
-cal add [-e FILE] DATE LABEL...
+mycal [options] [[month] year]
+mycal add [-e FILE] DATE LABEL...
 ```
 
 | Command            | Result                                |
 | ------------------ | ------------------------------------- |
-| `cal`              | Current month                         |
-| `cal 10 2026`      | October 2026                          |
-| `cal oct 2026`     | October 2026 (month names work)       |
-| `cal 10`           | October of the current year           |
-| `cal 2026`         | The whole year                        |
-| `cal -m 10 2026`   | October 2026, Monday first            |
-| `cal -w 2026`      | Whole year with ISO week numbers      |
-| `cal -mw 2026`     | Monday first plus week numbers        |
+| `mycal`              | Current month                         |
+| `mycal 10 2026`      | October 2026                          |
+| `mycal oct 2026`     | October 2026 (month names work)       |
+| `mycal 10`           | October of the current year           |
+| `mycal 2026`         | The whole year                        |
+| `mycal -m 10 2026`   | October 2026, Monday first            |
+| `mycal -w 2026`      | Whole year with ISO week numbers      |
+| `mycal -mw 2026`     | Monday first plus week numbers        |
 
 ### Options
 
@@ -69,7 +69,7 @@ Short flags can be combined, so `-mw` is the same as `-m -w`.
 
 ### Single argument rule
 
-One argument is ambiguous, so it is resolved like this: if it parses as a month (1 to 12, or a name of 3+ letters) it is a month of the current year, otherwise it is treated as a year. That means `cal 10` is October and `cal 2026` is the whole year. Years 1 to 12 need the two-argument form, for example `cal 1 5`.
+One argument is ambiguous, so it is resolved like this: if it parses as a month (1 to 12, or a name of 3+ letters) it is a month of the current year, otherwise it is treated as a year. That means `mycal 10` is October and `mycal 2026` is the whole year. Years 1 to 12 need the two-argument form, for example `mycal 1 5`.
 
 ## Events
 
@@ -99,9 +99,9 @@ A missing default file just means "no events yet". A missing file you named with
 **Adding events:**
 
 ```bash
-cal add 12-25 Christmas              # every year
-cal add 2026-10-15 Team offsite      # one day, quotes are optional
-cal add -e work.txt 2026-10-20 Sprint review
+mycal add 12-25 Christmas              # every year
+mycal add 2026-10-15 Team offsite      # one day, quotes are optional
+mycal add -e work.txt 2026-10-20 Sprint review
 ```
 
 The label is joined with single spaces and trimmed. Invalid dates, empty labels, labels with line breaks and labels over 127 characters are refused before anything is written.
@@ -116,12 +116,14 @@ The label is joined with single spaces and trimmed. Invalid dates, empty labels,
 ## Install
 
 ```bash
-sudo make install          # installs to /usr/local/bin/cal
+sudo make install          # installs to /usr/local/bin/mycal
 sudo make uninstall
 make install PREFIX=$HOME/.local   # no sudo, per-user install
 ```
 
-Most systems already ship a `cal` in `/usr/bin`. Make sure the install prefix comes first in your `PATH`, or rename the binary in the Makefile.
+The program is called `mycal` on purpose: Linux and macOS already ship a `mycal` in `/usr/bin`, and a program with the same name either shadows it or loses to it depending on `PATH`. To use another name, run `make install BIN_NAME=whatever`.
+
+The events file keeps its original names (`~/.cal_events`, `CAL_EVENTS`). They describe your data, not the program, so renaming the binary never orphans events you already saved.
 
 ## Testing
 
@@ -200,7 +202,7 @@ cal-c/
 │       │   ├── usage.h         # help text
 │       │   └── usage.c
 │       └── add/
-│           ├── add.h           # the "cal add" command
+│           ├── add.h           # the "mycal add" command
 │           └── add.c
 ├── tests/
 │   ├── support/
@@ -243,14 +245,14 @@ Drop a `.c` file anywhere under `src/` and `make` picks it up at any depth. A ne
 - **ISO week**: computed from day-of-year and ISO weekday, with explicit handling for days that belong to the previous or next year's week.
 - **No `mktime`**: it depends on `time_t` limits and the local timezone, so years far from 1970 behave badly. Pure arithmetic does not.
 - **Year view alignment**: every rendered month line is padded to a constant visible width, so three months can be printed side by side even though the lines contain invisible ANSI color codes. A test guards this for every month and layout.
-- **Safe appends**: `cal add` checks whether the file ends with a newline first, so a hand-edited file never gets two events glued onto one line.
+- **Safe appends**: `mycal add` checks whether the file ends with a newline first, so a hand-edited file never gets two events glued onto one line.
 
 ## Roadmap
 
 - [x] Events file with marked days and a legend
-- [x] `cal add`
+- [x] `mycal add`
 - [x] Test suite
-- [ ] `cal list` and `cal remove` to manage events without a text editor
+- [ ] `mycal list` and `mycal remove` to manage events without a text editor
 - [ ] Holidays layer loaded from data files, so movable holidays are not hardcoded
 - [ ] Interactive mode with arrow-key month navigation (ncurses)
 - [ ] CI that runs `make test` on every push

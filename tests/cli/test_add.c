@@ -22,7 +22,7 @@ static void run(Result *r, int argc, char *argv[]) {
     FILE *out = tmpfile();
     FILE *err = tmpfile();
 
-    r->code = add_run("cal", argc, argv, out, err);
+    r->code = add_run("mycal", argc, argv, out, err);
     test_slurp(out, r->out, sizeof r->out);
     test_slurp(err, r->err, sizeof r->err);
 
@@ -82,7 +82,7 @@ static void test_adds_a_yearly_event(void) {
 }
 
 // Both of these must produce the same label:
-//   cal add 12-25 Christmas Day      cal add 12-25 "Christmas Day"
+//   mycal add 12-25 Christmas Day      mycal add 12-25 "Christmas Day"
 static void test_label_words_are_joined_with_single_spaces(void) {
     char path[PATH_BUF];
     fresh_path(path, sizeof path);

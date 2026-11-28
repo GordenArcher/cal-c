@@ -14,7 +14,7 @@ PREFIX    ?= /usr/local
 BUILD_DIR := build
 OBJ_DIR   := $(BUILD_DIR)/obj
 TEST_DIR  := $(BUILD_DIR)/tests
-TARGET    := $(BUILD_DIR)/cal
+TARGET    := $(BUILD_DIR)/mycal
 
 # find, not wildcard, so a new file is picked up at any depth. wildcard only
 # matches the exact number of folder levels in the pattern, which silently
@@ -75,14 +75,16 @@ sanitize:
 clean:
 	rm -rf $(BUILD_DIR)
 
-# Installs as "cal". On most Linux and macOS systems a system cal already
-# exists in /usr/bin, so make sure $(PREFIX)/bin comes first in PATH or
-# change the installed name here before you rely on it.
+# Installed as "mycal", not "cal": every Linux and macOS system already has a
+# cal in /usr/bin, and a program that silently shadows it (or loses to it in
+# PATH) is a confusing thing to debug. Override with BIN_NAME=... if you like.
+BIN_NAME ?= mycal
+
 install: $(TARGET)
 	install -d $(DESTDIR)$(PREFIX)/bin
-	install -m 755 $(TARGET) $(DESTDIR)$(PREFIX)/bin/cal
+	install -m 755 $(TARGET) $(DESTDIR)$(PREFIX)/bin/$(BIN_NAME)
 
 uninstall:
-	rm -f $(DESTDIR)$(PREFIX)/bin/cal
+	rm -f $(DESTDIR)$(PREFIX)/bin/$(BIN_NAME)
 
 -include $(DEPS)
