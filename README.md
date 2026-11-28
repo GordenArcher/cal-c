@@ -23,6 +23,7 @@ Su Mo Tu We Th Fr Sa
 - Today is highlighted, weekends are colored
 - **Events**: days with events are underlined and listed under the month
 - `mycal add 12-25 Christmas` to add an event without opening a file
+- `mycal list` shows events by number, `mycal remove 2` deletes one safely
 - ISO 8601 week numbers, including year-boundary weeks
 - Sunday-first or Monday-first layout
 - Month names accepted as input (`oct`, `october`)
@@ -43,6 +44,8 @@ make test     # builds and runs the test suite
 ```bash
 mycal [options] [[month] year]
 mycal add [-e FILE] DATE LABEL...
+mycal list [-e FILE]
+mycal remove [-e FILE] LINE
 ```
 
 | Command            | Result                                |
@@ -108,6 +111,33 @@ mycal add -e work.txt 2026-10-20 Sprint review
 
 The label is joined with single spaces and trimmed. Invalid dates, empty labels, labels with line breaks and labels over 127 characters are refused before anything is written.
 
+**Listing and removing:**
+
+```bash
+mycal list
+```
+
+```
+   2  2026-12-25   Christmas
+   4  every 12-31  New Year's Eve
+   6  2026-10-15   Team offsite
+```
+
+```bash
+mycal remove 4
+```
+
+The number is the **line in the file**, not a position in the list. That is why the gaps above are fine: line 3 is a blank line and line 5 is a comment or a typo. It is the same number the loader prints in a warning (`file:5: ...`) and the one your editor shows, so there is only one numbering to learn.
+
+Because they are file lines, the numbers below a removed event move up by one. `remove` says so, and `list` shows the new numbers. It removes one event at a time on purpose, so you always know which one you are deleting.
+
+Removing is careful with your file:
+
+- Only real events can be removed. Pointing it at a comment, a blank line or a typo is refused and changes nothing.
+- Every other byte stays exactly as it was: your comments, your typos, Windows line endings, a missing final newline.
+- The new file is written next to the old one and swapped in with a rename, so a crash or a full disk leaves your original untouched.
+- A symlinked events file stays a symlink, and file permissions are kept.
+
 ### Exit codes
 
 | Code | Meaning                                                      |
@@ -135,18 +165,20 @@ make test
 
 ```
 ok    tests/render/test_month.c (420 checks)
-ok    tests/events/test_store.c (57 checks)
+ok    tests/events/test_store.c (147 checks)
 ...
+ok    tests/smoke/smoke.sh (30 checks)
 ```
 
-Every `tests/**/test_*.c` is its own program with its own `main()`, linked against the whole program except `main.c`. There is no framework, only `tests/support/test.h` (a few assertion macros) and `tests/support/fixtures.h`. All of them run even when one fails, and `make test` exits non-zero if any did.
+Every `tests/**/test_*.c` is its own program with its own `main()`, linked against the whole program except `main.c`. There is no framework, only a few small headers in `tests/support/` (assertion macros, test data builders, and a helper that runs a subcommand and captures what it printed). All of them run even when one fails, and `make test` exits non-zero if any did.
 
 What is covered:
 
 - **Calendar math**: known dates checked against Python, and a walk over every single day from 0001-01-01 to 9999-12-31 checking weekday, day-of-year and ISO week stay consistent between neighbours.
-- **Events**: parsing and formatting edge cases, reading and appending real files (missing trailing newline, overlong lines, bad lines), path resolution.
+- **Events**: parsing and formatting edge cases, reading, appending and removing in real files (missing trailing newline, overlong lines, CRLF, bad lines, symlinks, permissions, a failing write), path resolution.
 - **Rendering**: output captured from `view_*` into a temp file, constant line widths (the year view depends on it), underline and highlight rules.
-- **Command line**: flag parsing, the single-argument rule, every error message, and the `add` command.
+- **Command line**: flag parsing, the single-argument rule, every error message, and the `add`, `list` and `remove` commands working together.
+- **End to end**: `tests/smoke/smoke.sh` runs the real binary through add, list, view and remove, since `main.c` is the one file the unit tests cannot link against. It runs under the sanitizers too.
 
 To catch memory bugs, run the same suite under the AddressSanitizer and UndefinedBehaviorSanitizer:
 
@@ -162,8 +194,11 @@ GitHub Actions runs `make test` and `make sanitize` on Ubuntu and macOS for ever
 
 ```
 cal-c/
+├── .github/
+│   └── workflows/
+│       └── ci.yml              # build, test and sanitizers on Ubuntu and macOS
 ├── src/
-│   ├── main.c                  # wiring only: pick a command, own all printing
+│   ├── main.c                  # wiring only: dispatch the command, own all printing
 │   ├── core/                   # no I/O, no terminal, depends on nothing
 │   │   ├── calendar/
 │   │   │   ├── calendar.h      # constants, names, date math, ISO week
@@ -179,7 +214,7 @@ cal-c/
 │   │   │   ├── format.h        # text <-> Event, pure, no I/O
 │   │   │   └── format.c
 │   │   └── store/
-│   │       ├── store.h         # load, append, find the events file
+│   │       ├── store.h         # load, append, remove, find the events file
 │   │       └── store.c
 │   ├── render/                 # everything that draws (depends on core, events)
 │   │   ├── style/
@@ -200,18 +235,29 @@ cal-c/
 │       │   ├── args.h          # flags and positional args into a Config
 │       │   └── args.c
 │       ├── parse/
-│       │   ├── parse.h         # month and year parsing
+│       │   ├── parse.h         # month, year and line number parsing
 │       │   └── parse.c
 │       ├── usage/
 │       │   ├── usage.h         # help text
 │       │   └── usage.c
-│       └── add/
-│           ├── add.h           # the "mycal add" command
-│           └── add.c
+│       └── commands/           # one folder per subcommand
+│           ├── add/
+│           │   ├── add.h       # mycal add
+│           │   └── add.c
+│           ├── list/
+│           │   ├── list.h      # mycal list
+│           │   └── list.c
+│           ├── remove/
+│           │   ├── remove.h    # mycal remove
+│           │   └── remove.c
+│           └── target/
+│               ├── target.h    # the shared "which events file" rule
+│               └── target.c
 ├── tests/
 │   ├── support/
 │   │   ├── test.h              # assertion macros and temp file helpers
-│   │   └── fixtures.h          # shared test data builders
+│   │   ├── fixtures.h          # shared test data builders
+│   │   └── command.h           # run a subcommand and capture what it printed
 │   ├── core/
 │   │   └── test_calendar.c
 │   ├── events/
@@ -221,11 +267,17 @@ cal-c/
 │   ├── render/
 │   │   ├── test_month.c
 │   │   └── test_view.c
-│   └── cli/
-│       ├── test_parse.c
-│       ├── test_args.c
-│       └── test_add.c
-├── Makefile                    # build, run, test, install, clean
+│   ├── cli/
+│   │   ├── test_parse.c
+│   │   ├── test_args.c
+│   │   └── commands/
+│   │       ├── test_add.c
+│   │       ├── test_list.c
+│   │       └── test_remove.c
+│   └── smoke/
+│       └── smoke.sh            # the real binary, end to end
+├── LICENSE
+├── Makefile                    # build, run, test, sanitize, install, clean
 ├── README.md
 └── .gitignore
 ```
@@ -235,13 +287,13 @@ cal-c/
 ### Rules
 
 - **Dependencies point one way:** `main` -> `cli` -> `render` -> `events` -> `core`. `core` never includes anything above it, so the date math can be tested or reused without dragging in terminal code or files. If you catch yourself including upward, the code is in the wrong folder.
-- **Only `main.c` touches stdout and stderr** (plus the modules that take a `FILE *`). Argument parsing returns its error message instead of printing it, and the views and the `add` command write to a `FILE *` they are given, which is what makes them testable.
+- **Only `main.c` touches stdout and stderr** (plus the modules that take a `FILE *`). Argument parsing returns its error message instead of printing it, and the views and the `add`, `list` and `remove` commands write to a `FILE *` they are given, which is what makes them testable.
 - **At most 3 files per folder.** When a folder is full, the new module gets its own subfolder.
 - **Includes are written from the `src` root** (`#include "core/calendar/calendar.h"`), never with `../`.
 
 ### Adding a file
 
-Drop a `.c` file anywhere under `src/` and `make` picks it up at any depth. A new `tests/<domain>/test_<name>.c` is picked up the same way.
+Drop a `.c` file anywhere under `src/` and `make` picks it up at any depth. A new `tests/<domain>/test_<name>.c` is picked up the same way. A new subcommand is a folder under `src/cli/commands/` plus one line in the table in `main.c`.
 
 ## How it works
 
@@ -250,16 +302,18 @@ Drop a `.c` file anywhere under `src/` and `make` picks it up at any depth. A ne
 - **No `mktime`**: it depends on `time_t` limits and the local timezone, so years far from 1970 behave badly. Pure arithmetic does not.
 - **Year view alignment**: every rendered month line is padded to a constant visible width, so three months can be printed side by side even though the lines contain invisible ANSI color codes. A test guards this for every month and layout.
 - **Safe appends**: `mycal add` checks whether the file ends with a newline first, so a hand-edited file never gets two events glued onto one line.
+- **Safe removal**: `mycal remove` copies the file without the chosen line into a temp file next to it, syncs it to disk and renames it over the original. A rename is atomic, so you get the old file or the new one, never half of each. The path is resolved first, so a symlinked events file is updated in place and stays a symlink.
 
 ## Roadmap
 
 - [x] Events file with marked days and a legend
 - [x] `mycal add`
 - [x] Test suite
-- [ ] `mycal list` and `mycal remove` to manage events without a text editor
+- [x] `mycal list` and `mycal remove` to manage events without a text editor
 - [ ] Holidays layer loaded from data files, so movable holidays are not hardcoded
 - [ ] Interactive mode with arrow-key month navigation (ncurses)
-- [ ] CI that runs `make test` on every push
+- [x] CI that runs `make test` and `make sanitize` on every push
+- [ ] Filter `list` by month or year, and remove several events at once
 
 ## License
 
