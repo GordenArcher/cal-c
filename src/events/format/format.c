@@ -78,7 +78,10 @@ FormatStatus format_parse_line(const char *line, Event *out) {
     memcpy(date, start, date_len);
     date[date_len] = '\0';
 
+    // Zeroed first so the fields this function does not set (like
+    // source_line) are 0 and not whatever was on the stack.
     Event parsed;
+    memset(&parsed, 0, sizeof parsed);
     FormatStatus status = format_parse_date(date, &parsed);
     if (status != FORMAT_OK) return status;
 

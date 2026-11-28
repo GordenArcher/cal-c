@@ -15,6 +15,10 @@ typedef struct {
     int month;
     int day;
     char label[EVENT_LABEL_CAP];
+
+    // 1-based line in the events file this event was read from, 0 when it was
+    // never read from a file. It is the number "list" shows and "remove" takes.
+    int source_line;
 } Event;
 
 typedef struct {

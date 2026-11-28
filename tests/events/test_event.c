@@ -8,7 +8,7 @@
 enum { MANY_EVENTS = 100 };
 
 static void test_one_off_matches_only_its_year(void) {
-    Event e = {2026, 12, 25, "Christmas"};
+    Event e = {.year = 2026, .month = 12, .day = 25, .label = "Christmas"};
 
     CHECK(event_occurs_on(&e, 2026, 12, 25));
     CHECK(!event_occurs_on(&e, 2027, 12, 25));
@@ -17,7 +17,7 @@ static void test_one_off_matches_only_its_year(void) {
 }
 
 static void test_yearly_matches_every_year(void) {
-    Event e = {EVERY_YEAR, 12, 25, "Christmas"};
+    Event e = {.year = EVERY_YEAR, .month = 12, .day = 25, .label = "Christmas"};
 
     CHECK(event_occurs_on(&e, 1, 12, 25));
     CHECK(event_occurs_on(&e, 2026, 12, 25));
@@ -26,7 +26,7 @@ static void test_yearly_matches_every_year(void) {
 }
 
 static void test_yearly_leap_day_skips_non_leap_years(void) {
-    Event e = {EVERY_YEAR, 2, 29, "Leap day"};
+    Event e = {.year = EVERY_YEAR, .month = 2, .day = 29, .label = "Leap day"};
 
     CHECK(event_occurs_on(&e, 2024, 2, 29));
     // It does not slide to Feb 28 or Mar 1 in years without a Feb 29.

@@ -122,33 +122,33 @@ static void test_parse_line_label_length_limit(void) {
 static void test_format_line(void) {
     char buf[FORMAT_LINE_CAP];
 
-    Event yearly = {EVERY_YEAR, 12, 25, "Christmas"};
+    Event yearly = {.year = EVERY_YEAR, .month = 12, .day = 25, .label = "Christmas"};
     CHECK_INT(format_line(&yearly, buf, sizeof buf), 15);
     CHECK_STR(buf, "12-25|Christmas");
 
-    Event once = {2026, 1, 5, "Dentist"};
+    Event once = {.year = 2026, .month = 1, .day = 5, .label = "Dentist"};
     format_line(&once, buf, sizeof buf);
     CHECK_STR(buf, "2026-01-05|Dentist");   // zero padded
 
-    Event early = {5, 1, 1, "x"};
+    Event early = {.year = 5, .month = 1, .day = 1, .label = "x"};
     format_line(&early, buf, sizeof buf);
     CHECK_STR(buf, "0005-01-01|x");         // year padded to 4 digits so it parses back
 }
 
 static void test_format_line_refuses_to_truncate(void) {
     char small[8];
-    Event e = {2026, 12, 25, "Christmas"};
+    Event e = {.year = 2026, .month = 12, .day = 25, .label = "Christmas"};
 
     CHECK_INT(format_line(&e, small, sizeof small), -1);
 }
 
 static void test_format_then_parse_round_trips(void) {
     Event originals[] = {
-        {EVERY_YEAR, 2, 29, "Leap day"},
-        {2026, 10, 15, "Team offsite"},
-        {1, 1, 1, "First day"},
-        {9999, 12, 31, "Last day"},
-        {EVERY_YEAR, 10, 31, "trick|treat"},
+        {.year = EVERY_YEAR, .month = 2, .day = 29, .label = "Leap day"},
+        {.year = 2026, .month = 10, .day = 15, .label = "Team offsite"},
+        {.year = 1, .month = 1, .day = 1, .label = "First day"},
+        {.year = 9999, .month = 12, .day = 31, .label = "Last day"},
+        {.year = EVERY_YEAR, .month = 10, .day = 31, .label = "trick|treat"},
     };
 
     for (size_t i = 0; i < sizeof originals / sizeof originals[0]; i++) {

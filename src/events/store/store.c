@@ -1,10 +1,20 @@
+// realpath and fsync are POSIX, not C11. Needs to be defined before any include.
+#define _POSIX_C_SOURCE 200809L
+
 #include "events/store/store.h"
 
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "events/format/format.h"
+
+enum {
+    PERMISSION_BITS = 07777,
+    TEMP_SUFFIX_CAP = 8     // room for ".tmp" and the terminating NUL
+};
 
 #define DEFAULT_FILE_NAME ".cal_events"
 #define ENV_EVENTS_PATH   "CAL_EVENTS"
@@ -61,6 +71,7 @@ StoreStatus store_load(const char *path, EventList *out, FILE *warn) {
             continue;
         }
 
+        event.source_line = lineno;
         if (eventlist_add(out, &event) != 0) {
             fclose(f);
             return STORE_ERROR;
@@ -95,4 +106,102 @@ StoreStatus store_append(const char *path, const Event *event) {
         return STORE_ERROR;
     }
     return fclose(f) == 0 ? STORE_OK : STORE_ERROR;
+}
+
+// Copies the file to a temp file next to it, leaving one line out, then swaps
+// the temp file in with rename(). rename is atomic within one filesystem, so a
+// crash at any point leaves either the old file or the new one, never a
+// half-written mix. This assumes one user at a time: two runs removing at the
+// same moment would share the same temp name.
+static RemoveStatus remove_line(const char *target, int line, Event *removed) {
+    FILE *in = fopen(target, "r");
+    if (!in) return REMOVE_ERROR;
+
+    char temp_path[STORE_PATH_CAP + TEMP_SUFFIX_CAP];
+    if (snprintf(temp_path, sizeof temp_path, "%s.tmp", target) >= (int)sizeof temp_path) {
+        fclose(in);
+        return REMOVE_ERROR;
+    }
+
+    FILE *out = fopen(temp_path, "w");
+    if (!out) {
+        fclose(in);
+        return REMOVE_ERROR;
+    }
+
+    // A new file gets default permissions. Copy the original's so a 0600
+    // events file does not quietly become world readable.
+    struct stat original;
+    if (stat(target, &original) == 0) chmod(temp_path, original.st_mode & PERMISSION_BITS);
+
+    char buf[FORMAT_LINE_CAP];
+    int lineno = 0;
+    int at_line_start = 1;
+    int skipping = 0;
+    int found = 0;
+    int write_failed = 0;
+
+    while (fgets(buf, sizeof buf, in)) {
+        size_t len = strlen(buf);
+
+        // fgets can hand back a line in several pieces. Only the first piece
+        // starts a new line, and only a piece ending in a newline ends it.
+        if (at_line_start) {
+            lineno++;
+
+            if (lineno == line) {
+                int whole_line = (len < sizeof buf - 1) || buf[len - 1] == '\n';
+                Event event;
+
+                // An overlong line is never a valid event, so it is kept.
+                if (whole_line && format_parse_line(buf, &event) == FORMAT_OK) {
+                    event.source_line = line;
+                    if (removed) *removed = event;
+                    skipping = 1;
+                    found = 1;
+                }
+            }
+        }
+
+        at_line_start = (len > 0 && buf[len - 1] == '\n');
+
+        if (!skipping && fputs(buf, out) == EOF) write_failed = 1;
+        if (at_line_start) skipping = 0;
+    }
+
+    int read_failed = ferror(in);
+    fclose(in);
+
+    // ferror catches a write that failed earlier: once the buffer has been
+    // flushed and failed, a later fflush finds nothing left to write and
+    // reports success. fsync before the rename: without it, a power cut right
+    // after the swap can leave an empty file on some filesystems.
+    if (fflush(out) != 0 || ferror(out) || fsync(fileno(out)) != 0) write_failed = 1;
+    if (fclose(out) != 0) write_failed = 1;
+
+    if (read_failed || write_failed) {
+        remove(temp_path);
+        return REMOVE_ERROR;
+    }
+    if (!found) {
+        remove(temp_path);
+        return REMOVE_NO_SUCH_EVENT;
+    }
+    if (rename(temp_path, target) != 0) {
+        remove(temp_path);
+        return REMOVE_ERROR;
+    }
+    return REMOVE_OK;
+}
+
+RemoveStatus store_remove(const char *path, int line, Event *removed) {
+    // Resolve symlinks first. Plenty of people keep ~/.cal_events as a symlink
+    // into a dotfiles repo, and renaming a temp file over the link itself
+    // would silently replace the link with a regular file.
+    char *target = realpath(path, NULL);
+    if (!target) return (errno == ENOENT) ? REMOVE_FILE_NOT_FOUND : REMOVE_ERROR;
+
+    RemoveStatus status = remove_line(target, line, removed);
+    free(target);
+    return status;
 }
